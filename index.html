@@ -4,723 +4,561 @@
 <meta charset="UTF-8">
 <title>Battleship</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #061220;
+  color: #e0f0ff;
+  font-family: 'Segoe UI', sans-serif;
+  display: flex; flex-direction: column; align-items: center;
+  min-height: 100vh; padding: 16px;
+}
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: -1;
+  background: radial-gradient(ellipse 100% 60% at 50% 100%, #0d2b4e 0%, #061220 70%);
+  animation: oceanPulse 8s ease-in-out infinite;
+}
+@keyframes oceanPulse { 0%,100%{opacity:1} 50%{opacity:0.8} }
 
-  body {
-    background: #0a1628;
-    color: #e0f0ff;
-    font-family: 'Segoe UI', sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    min-height: 100vh;
-    padding: 20px;
-  }
+#top-bar { display:flex; align-items:center; gap:16px; margin-bottom:6px; flex-wrap:wrap; justify-content:center; }
+h1 { font-size:2.2rem; letter-spacing:6px; color:#4fc3f7; text-shadow:0 0 30px #4fc3f7aa; }
+#top-controls { display:flex; gap:10px; align-items:center; }
 
-  #top-bar {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 6px;
-  }
+select#difficulty {
+  padding:6px 14px; border-radius:20px; border:2px solid #4fc3f7;
+  background:#0d2137; color:#4fc3f7; font-size:0.85rem; cursor:pointer; outline:none;
+}
+#audio-btn {
+  padding:6px 14px; border-radius:20px; border:2px solid #4fc3f7;
+  background:transparent; color:#4fc3f7; cursor:pointer; font-size:0.85rem; transition:all 0.2s;
+}
+#audio-btn.muted { border-color:#334155; color:#607d8b; }
 
-  h1 {
-    font-size: 2.2rem;
-    letter-spacing: 6px;
-    color: #4fc3f7;
-    text-shadow: 0 0 20px #4fc3f7aa;
-  }
+#status { font-size:1rem; color:#b0c4de; margin-bottom:14px; min-height:24px; text-align:center; }
 
-  #audio-btn {
-    padding: 6px 14px;
-    border-radius: 20px;
-    border: 2px solid #4fc3f7;
-    background: transparent;
-    color: #4fc3f7;
-    cursor: pointer;
-    font-size: 0.85rem;
-    transition: all 0.2s;
-    white-space: nowrap;
-  }
-  #audio-btn:hover { background: #4fc3f722; }
-  #audio-btn.muted { border-color: #334155; color: #607d8b; }
+#game-area { display:flex; gap:36px; align-items:flex-start; flex-wrap:wrap; justify-content:center; }
+.board-section { display:flex; flex-direction:column; align-items:center; gap:8px; }
+.board-label { font-size:0.85rem; letter-spacing:4px; color:#4fc3f7; text-transform:uppercase; }
 
-  #status {
-    font-size: 1.1rem;
-    color: #b0c4de;
-    margin-bottom: 18px;
-    min-height: 28px;
-    text-align: center;
-  }
+canvas {
+  border-radius:8px; border:1px solid #1a3a5c; display:block;
+  box-shadow:0 0 40px #000c, 0 0 60px #4fc3f711;
+  width:min(460px, 44vw); height:auto;
+}
+canvas.shootable { cursor:crosshair; }
 
-  #game-area {
-    display: flex;
-    gap: 50px;
-    align-items: flex-start;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
+#placement-panel { display:flex; flex-direction:column; align-items:center; gap:8px; }
+#ship-queue { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; max-width:420px; }
+.ship-btn {
+  padding:5px 12px; border-radius:20px; border:2px solid #2a5a8c;
+  background:#0d2137; color:#b0c4de; cursor:pointer; font-size:0.8rem; transition:all 0.2s;
+}
+.ship-btn.active { border-color:#4fc3f7; background:#1a3a5c; color:#fff; box-shadow:0 0 8px #4fc3f755; }
+.ship-btn.placed { border-color:#334155; color:#334155; cursor:default; text-decoration:line-through; }
 
-  .board-section { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.btn {
+  padding:8px 20px; border-radius:8px; font-size:0.9rem; cursor:pointer;
+  letter-spacing:1px; transition:all 0.2s; border:2px solid;
+}
+#rotate-btn { background:transparent; color:#4fc3f7; border-color:#4fc3f7; }
+#random-btn { background:#1a3a5c; color:#4fc3f7; border-color:#4fc3f7; }
+#random-btn:hover { background:#4fc3f7; color:#0a1628; }
+#start-btn  { background:#166534; color:#bbf7d0; border-color:#22c55e; display:none; }
+#start-btn:hover { background:#22c55e; color:#0a1628; }
+#restart-btn { background:#7f1d1d; color:#fecaca; border-color:#ef4444; display:none; margin-top:4px; }
+#restart-btn:hover { background:#ef4444; color:#0a1628; }
 
-  .board-label {
-    font-size: 0.95rem;
-    letter-spacing: 3px;
-    color: #4fc3f7;
-    text-transform: uppercase;
-  }
+#score { display:flex; gap:36px; font-size:0.9rem; color:#607d8b; }
+#score span { color:#4fc3f7; font-weight:bold; }
 
-  .grid {
-    display: grid;
-    grid-template-columns: 28px repeat(10, 40px);
-    grid-template-rows: 28px repeat(10, 40px);
-    gap: 2px;
-  }
-
-  .header-cell {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.75rem;
-    color: #607d8b;
-    font-weight: bold;
-  }
-
-  .cell {
-    width: 40px; height: 40px;
-    border-radius: 4px;
-    background: #0d2137;
-    border: 1px solid #1a3a5c;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.2rem;
-    cursor: default;
-    transition: background 0.2s, transform 0.1s;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .cell.ship   { background: #1a3a5c; border-color: #2a5a8c; }
-  .cell.hit    { background: #7f1d1d; border-color: #ef4444; animation: pulse-hit 0.4s ease; }
-  .cell.miss   { background: #0d2137; border-color: #334155; }
-  .cell.sunk   { background: #450a0a; border-color: #991b1b; }
-  .cell.enemy  { cursor: crosshair; }
-  .cell.enemy:hover:not(.hit):not(.miss):not(.sunk) {
-    background: #1e3a5f;
-    transform: scale(1.08);
-    border-color: #4fc3f7;
-    z-index: 2;
-  }
-  .cell.preview-ok  { background: #0d3320; border-color: #22c55e; }
-  .cell.preview-bad { background: #3a1a0d; border-color: #ef4444; }
-
-  @keyframes pulse-hit { 0% { transform: scale(1.3); } 100% { transform: scale(1); } }
-  @keyframes pulse-sunk {
-    0%   { transform: scale(1.4); filter: brightness(2); }
-    100% { transform: scale(1);   filter: brightness(1); }
-  }
-  .cell.sunk { animation: pulse-sunk 0.5s ease; }
-
-  #placement-panel {
-    display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 10px;
-  }
-
-  #ship-queue { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 420px; }
-
-  .ship-btn {
-    padding: 6px 14px; border-radius: 20px; border: 2px solid #2a5a8c;
-    background: #0d2137; color: #b0c4de; cursor: pointer; font-size: 0.85rem; transition: all 0.2s;
-  }
-  .ship-btn.active { border-color: #4fc3f7; background: #1a3a5c; color: #fff; box-shadow: 0 0 10px #4fc3f755; }
-  .ship-btn.placed { border-color: #334155; color: #334155; cursor: default; text-decoration: line-through; }
-
-  #rotate-btn {
-    padding: 8px 20px; border-radius: 8px; border: 2px solid #4fc3f7;
-    background: transparent; color: #4fc3f7; cursor: pointer; font-size: 0.9rem;
-    letter-spacing: 1px; transition: all 0.2s;
-  }
-  #rotate-btn:hover { background: #4fc3f722; }
-
-  #random-btn, #start-btn, #restart-btn {
-    padding: 10px 28px; border-radius: 8px; border: none;
-    font-size: 1rem; cursor: pointer; letter-spacing: 2px; transition: all 0.2s;
-  }
-  #random-btn  { background: #1a3a5c; color: #4fc3f7; border: 2px solid #4fc3f7; }
-  #random-btn:hover { background: #4fc3f7; color: #0a1628; }
-  #start-btn   { background: #166534; color: #bbf7d0; border: 2px solid #22c55e; display: none; }
-  #start-btn:hover { background: #22c55e; color: #0a1628; }
-  #restart-btn { background: #7f1d1d; color: #fecaca; border: 2px solid #ef4444; display: none; margin-top: 10px; }
-  #restart-btn:hover { background: #ef4444; color: #0a1628; }
-
-  #score { display: flex; gap: 40px; margin-top: 6px; font-size: 0.9rem; color: #607d8b; }
-  #score span { color: #4fc3f7; font-weight: bold; }
-
-  #overlay {
-    display: none; position: fixed; inset: 0; background: #0a1628dd;
-    align-items: center; justify-content: center; z-index: 100; flex-direction: column; gap: 20px;
-  }
-  #overlay.show { display: flex; }
-  #overlay h2 { font-size: 2.5rem; letter-spacing: 4px; }
-  #overlay.win  h2 { color: #22c55e; text-shadow: 0 0 30px #22c55e; }
-  #overlay.lose h2 { color: #ef4444; text-shadow: 0 0 30px #ef4444; }
-  #overlay p { color: #b0c4de; font-size: 1.1rem; }
+#overlay {
+  display:none; position:fixed; inset:0; background:#061220ee;
+  align-items:center; justify-content:center; z-index:100;
+  flex-direction:column; gap:18px;
+}
+#overlay.show { display:flex; }
+#overlay h2 { font-size:2.4rem; letter-spacing:4px; }
+#overlay.win  h2 { color:#22c55e; text-shadow:0 0 40px #22c55e; }
+#overlay.lose h2 { color:#ef4444; text-shadow:0 0 40px #ef4444; }
+#overlay p { color:#b0c4de; font-size:1rem; }
+#overlay-restart {
+  padding:10px 28px; border-radius:8px; border:2px solid #4fc3f7;
+  background:transparent; color:#4fc3f7; font-size:1rem; cursor:pointer; letter-spacing:2px;
+}
 </style>
 </head>
 <body>
 
 <div id="top-bar">
   <h1>⚓ BATTLESHIP</h1>
-  <button id="audio-btn">🔊 Sound ON</button>
+  <div id="top-controls">
+    <select id="difficulty">
+      <option value="easy">🟢 Easy</option>
+      <option value="medium" selected>🟡 Medium</option>
+      <option value="hard">🔴 Hard</option>
+    </select>
+    <button id="audio-btn">🔊 Sound ON</button>
+  </div>
 </div>
-<div id="status">Place your ships — click a ship, then click the grid</div>
+<div id="status">Place your ships — click a ship, then click your grid</div>
 
 <div id="game-area">
   <div class="board-section">
     <div class="board-label">Your Fleet</div>
-    <div class="grid" id="player-grid"></div>
+    <canvas id="player-canvas"></canvas>
     <div id="placement-panel">
       <div id="ship-queue"></div>
-      <div style="display:flex;gap:12px">
-        <button id="rotate-btn">↻ Rotate (H)</button>
-        <button id="random-btn">⚡ Random</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn" id="rotate-btn">↻ Rotate (H)</button>
+        <button class="btn" id="random-btn">⚡ Random</button>
       </div>
-      <button id="start-btn">▶ START BATTLE</button>
+      <button class="btn" id="start-btn">▶ START BATTLE</button>
     </div>
   </div>
-
   <div class="board-section">
     <div class="board-label">Enemy Waters</div>
-    <div class="grid" id="enemy-grid"></div>
+    <canvas id="enemy-canvas"></canvas>
     <div id="score">
       <div>Your hits: <span id="your-hits">0</span></div>
       <div>Enemy hits: <span id="enemy-hits">0</span></div>
     </div>
-    <button id="restart-btn">↺ Play Again</button>
+    <button class="btn" id="restart-btn">↺ Play Again</button>
   </div>
 </div>
 
 <div id="overlay">
   <h2 id="overlay-title"></h2>
   <p id="overlay-sub"></p>
-  <button id="overlay-restart" style="padding:10px 30px;border-radius:8px;border:2px solid #4fc3f7;background:transparent;color:#4fc3f7;font-size:1rem;cursor:pointer;letter-spacing:2px">PLAY AGAIN</button>
+  <button id="overlay-restart">PLAY AGAIN</button>
 </div>
 
 <script>
-// ===================== AUDIO ENGINE =====================
-let ctx = null;
-let masterGain = null;
-let musicGain = null;
-let sfxGain = null;
-let musicTimer = null;
-let musicStep = 0;
-let nextStepTime = 0;
-let audioEnabled = true;
-let audioStarted = false;
-let droneNode = null;
+// ── AUDIO ──────────────────────────────────────────────────
+let AC=null, masterG, musicG, sfxG, musicTimer=null;
+let musicStep=0, nextBeat=0, audioOn=true, audioReady=false;
+const BPM=95, SD=60/BPM/4, TS=32;
+const K=[1,0,0,0,1,0,1,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,1,0,1,0,0,0,1,0,0,0];
+const SN=[0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0];
+const HH=[1,0,1,0,1,0,1,0,1,0,1,1,1,0,1,0,1,0,1,0,1,0,1,0,1,1,1,0,1,0,1,0];
+const BS=[73.4,0,0,0,0,0,55,0,87.3,0,0,0,65.4,0,0,0,73.4,0,0,0,0,0,58.3,0,98,0,0,0,110,0,0,0];
+const LD=[0,0,0,0,0,0,0,0,146.8,0,0,0,0,0,0,0,0,0,174.6,0,0,0,0,0,130.8,0,0,0,0,0,0,0];
 
-const BPM = 95;
-const STEP_DUR = 60 / BPM / 4; // 16th note duration in seconds
-const TOTAL_STEPS = 32;         // 2 bars
-
-// D natural minor patterns (32 steps, 16th note grid)
-const PAT_KICK  = [1,0,0,0, 1,0,1,0, 1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,1,0, 1,0,0,0, 1,0,0,0];
-const PAT_SNARE = [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,1,0];
-const PAT_HIHAT = [1,0,1,0, 1,0,1,0, 1,0,1,1, 1,0,1,0, 1,0,1,0, 1,0,1,0, 1,1,1,0, 1,0,1,0];
-// D2=73.4 A1=55 F2=87.3 C2=65.4 Bb1=58.3 G2=98 A2=110
-const PAT_BASS  = [73.4,0,0,0, 0,0,55,0, 87.3,0,0,0, 65.4,0,0,0, 73.4,0,0,0, 0,0,58.3,0, 98,0,0,0, 110,0,0,0];
-// D3=146.8 F3=174.6 C3=130.8 A3=220
-const PAT_LEAD  = [0,0,0,0, 0,0,0,0, 146.8,0,0,0, 0,0,0,0, 0,0,174.6,0, 0,0,0,0, 130.8,0,0,0, 0,0,0,0];
-
-function initAudio() {
-  if (audioStarted) return;
-  audioStarted = true;
-  ctx = new (window.AudioContext || window.webkitAudioContext)();
-  masterGain = ctx.createGain(); masterGain.gain.value = 0.9; masterGain.connect(ctx.destination);
-  musicGain  = ctx.createGain(); musicGain.gain.value  = 0.35; musicGain.connect(masterGain);
-  sfxGain    = ctx.createGain(); sfxGain.gain.value    = 1.0;  sfxGain.connect(masterGain);
-  startDrone();
+function initAudio(){
+  if(audioReady)return; audioReady=true;
+  AC=new(window.AudioContext||window.webkitAudioContext)();
+  masterG=AC.createGain(); masterG.gain.value=0.9; masterG.connect(AC.destination);
+  musicG=AC.createGain(); musicG.gain.value=0.32; musicG.connect(masterG);
+  sfxG=AC.createGain(); sfxG.gain.value=1; sfxG.connect(masterG);
+  const dr=AC.createOscillator(); dr.type='sine'; dr.frequency.value=36.7;
+  const lf=AC.createOscillator(); lf.frequency.value=0.3;
+  const lg=AC.createGain(); lg.gain.value=0.08;
+  const dg=AC.createGain(); dg.gain.value=0.22;
+  lf.connect(lg); lg.connect(dg.gain); dr.connect(dg); dg.connect(musicG);
+  dr.start(); lf.start();
   startMusic();
 }
-
-function noise(dur) {
-  const n = Math.ceil(ctx.sampleRate * dur);
-  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
-  const src = ctx.createBufferSource(); src.buffer = buf; return src;
+function mkN(d){
+  const b=AC.createBuffer(1,Math.ceil(AC.sampleRate*d),AC.sampleRate);
+  const dd=b.getChannelData(0); for(let i=0;i<dd.length;i++)dd[i]=Math.random()*2-1;
+  const s=AC.createBufferSource(); s.buffer=b; return s;
 }
-
-function schedKick(t) {
-  const o = ctx.createOscillator();
-  o.frequency.setValueAtTime(110, t);
-  o.frequency.exponentialRampToValueAtTime(28, t + 0.12);
-  const g = ctx.createGain(); g.gain.setValueAtTime(1.2, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
-  o.connect(g); g.connect(musicGain); o.start(t); o.stop(t + 0.18);
-}
-
-function schedSnare(t) {
-  const src = noise(0.18);
-  const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400; f.Q.value = 0.8;
-  const g = ctx.createGain(); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
-  src.connect(f); f.connect(g); g.connect(musicGain); src.start(t); src.stop(t + 0.18);
-}
-
-function schedHihat(t) {
-  const src = noise(0.06);
-  const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 9000;
-  const g = ctx.createGain(); g.gain.setValueAtTime(0.18, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
-  src.connect(f); f.connect(g); g.connect(musicGain); src.start(t); src.stop(t + 0.06);
-}
-
-function schedBass(freq, t) {
-  const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = freq;
-  const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 350;
-  const g = ctx.createGain(); g.gain.setValueAtTime(0.6, t); g.gain.exponentialRampToValueAtTime(0.001, t + STEP_DUR * 3.8);
-  o.connect(f); f.connect(g); g.connect(musicGain); o.start(t); o.stop(t + STEP_DUR * 4);
-}
-
-function schedLead(freq, t) {
-  const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = freq;
-  const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900;
-  const g = ctx.createGain(); g.gain.setValueAtTime(0.22, t); g.gain.exponentialRampToValueAtTime(0.001, t + STEP_DUR * 3.5);
-  o.connect(f); f.connect(g); g.connect(musicGain); o.start(t); o.stop(t + STEP_DUR * 4);
-}
-
-function startDrone() {
-  // Atmospheric low drone on D1 (36.7 Hz) with slow tremolo
-  const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = 36.7;
-  const lfo = ctx.createOscillator(); lfo.frequency.value = 0.3; lfo.type = 'sine';
-  const lfoGain = ctx.createGain(); lfoGain.gain.value = 0.08;
-  const g = ctx.createGain(); g.gain.value = 0.25;
-  lfo.connect(lfoGain); lfoGain.connect(g.gain);
-  o.connect(g); g.connect(musicGain);
-  o.start(); lfo.start();
-  droneNode = [o, lfo];
-}
-
-function musicScheduler() {
-  if (!ctx || !audioEnabled) return;
-  const LOOK = 0.12;
-  while (nextStepTime < ctx.currentTime + LOOK) {
-    const s = musicStep % TOTAL_STEPS;
-    if (PAT_KICK[s])  schedKick(nextStepTime);
-    if (PAT_SNARE[s]) schedSnare(nextStepTime);
-    if (PAT_HIHAT[s]) schedHihat(nextStepTime);
-    if (PAT_BASS[s])  schedBass(PAT_BASS[s], nextStepTime);
-    if (PAT_LEAD[s])  schedLead(PAT_LEAD[s], nextStepTime);
-    musicStep++;
-    nextStepTime += STEP_DUR;
+function schedK(t){const o=AC.createOscillator();o.frequency.setValueAtTime(110,t);o.frequency.exponentialRampToValueAtTime(28,t+0.12);const g=AC.createGain();g.gain.setValueAtTime(1.2,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.18);o.connect(g);g.connect(musicG);o.start(t);o.stop(t+0.18);}
+function schedSN(t){const s=mkN(0.18);const f=AC.createBiquadFilter();f.type='bandpass';f.frequency.value=1400;f.Q.value=0.8;const g=AC.createGain();g.gain.setValueAtTime(0.45,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.18);s.connect(f);f.connect(g);g.connect(musicG);s.start(t);s.stop(t+0.18);}
+function schedHH(t){const s=mkN(0.06);const f=AC.createBiquadFilter();f.type='highpass';f.frequency.value=9000;const g=AC.createGain();g.gain.setValueAtTime(0.16,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.06);s.connect(f);f.connect(g);g.connect(musicG);s.start(t);s.stop(t+0.06);}
+function schedBS(fr,t){const o=AC.createOscillator();o.type='sawtooth';o.frequency.value=fr;const f=AC.createBiquadFilter();f.type='lowpass';f.frequency.value=350;const g=AC.createGain();g.gain.setValueAtTime(0.55,t);g.gain.exponentialRampToValueAtTime(0.001,t+SD*3.8);o.connect(f);f.connect(g);g.connect(musicG);o.start(t);o.stop(t+SD*4);}
+function schedLD(fr,t){const o=AC.createOscillator();o.type='square';o.frequency.value=fr;const f=AC.createBiquadFilter();f.type='lowpass';f.frequency.value=900;const g=AC.createGain();g.gain.setValueAtTime(0.2,t);g.gain.exponentialRampToValueAtTime(0.001,t+SD*3.5);o.connect(f);f.connect(g);g.connect(musicG);o.start(t);o.stop(t+SD*4);}
+function musicSched(){
+  if(!AC||!audioOn)return;
+  while(nextBeat<AC.currentTime+0.12){
+    const s=musicStep%TS;
+    if(K[s])schedK(nextBeat); if(SN[s])schedSN(nextBeat); if(HH[s])schedHH(nextBeat);
+    if(BS[s])schedBS(BS[s],nextBeat); if(LD[s])schedLD(LD[s],nextBeat);
+    musicStep++; nextBeat+=SD;
   }
 }
+function startMusic(){musicStep=0;nextBeat=AC.currentTime+0.1;if(musicTimer)clearInterval(musicTimer);musicTimer=setInterval(musicSched,25);}
+function stopMusic(){if(musicTimer){clearInterval(musicTimer);musicTimer=null;}}
 
-function startMusic() {
-  musicStep = 0;
-  nextStepTime = ctx.currentTime + 0.1;
-  if (musicTimer) clearInterval(musicTimer);
-  musicTimer = setInterval(musicScheduler, 25);
+function sfxHit(){if(!AC||!audioOn)return;const t=AC.currentTime;const s=mkN(0.5);const f=AC.createBiquadFilter();f.type='lowpass';f.frequency.setValueAtTime(900,t);f.frequency.exponentialRampToValueAtTime(60,t+0.4);const g=AC.createGain();g.gain.setValueAtTime(1,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.5);s.connect(f);f.connect(g);g.connect(sfxG);s.start(t);s.stop(t+0.5);const o=AC.createOscillator();o.frequency.setValueAtTime(130,t);o.frequency.exponentialRampToValueAtTime(35,t+0.25);const g2=AC.createGain();g2.gain.setValueAtTime(0.7,t);g2.gain.exponentialRampToValueAtTime(0.001,t+0.3);o.connect(g2);g2.connect(sfxG);o.start(t);o.stop(t+0.3);}
+function sfxMiss(){if(!AC||!audioOn)return;const t=AC.currentTime;const s=mkN(0.45);const f=AC.createBiquadFilter();f.type='bandpass';f.Q.value=0.5;f.frequency.setValueAtTime(2800,t);f.frequency.exponentialRampToValueAtTime(300,t+0.35);const g=AC.createGain();g.gain.setValueAtTime(0.32,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.45);s.connect(f);f.connect(g);g.connect(sfxG);s.start(t);s.stop(t+0.45);}
+function sfxSunk(){if(!AC||!audioOn)return;const t=AC.currentTime;for(let i=0;i<3;i++){const d=i*0.12;const s=mkN(0.6);const f=AC.createBiquadFilter();f.type='lowpass';f.frequency.setValueAtTime(1200,t+d);f.frequency.exponentialRampToValueAtTime(40,t+d+0.5);const g=AC.createGain();g.gain.setValueAtTime(0.8-i*0.2,t+d);g.gain.exponentialRampToValueAtTime(0.001,t+d+0.6);s.connect(f);f.connect(g);g.connect(sfxG);s.start(t+d);s.stop(t+d+0.6);}const o=AC.createOscillator();o.frequency.setValueAtTime(80,t);o.frequency.exponentialRampToValueAtTime(20,t+0.8);const g=AC.createGain();g.gain.setValueAtTime(1,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.8);o.connect(g);g.connect(sfxG);o.start(t);o.stop(t+0.8);}
+function sfxWin(){if(!AC||!audioOn)return;const t=AC.currentTime;[293.7,349.2,440,587.3].forEach((f,i)=>{const o=AC.createOscillator();o.type='square';o.frequency.value=f;const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=1200;const g=AC.createGain();const on=t+i*0.18;g.gain.setValueAtTime(0,on);g.gain.linearRampToValueAtTime(0.4,on+0.05);g.gain.setValueAtTime(0.4,on+0.12);g.gain.exponentialRampToValueAtTime(0.001,on+0.4);o.connect(lp);lp.connect(g);g.connect(sfxG);o.start(on);o.stop(on+0.4);});}
+function sfxLose(){if(!AC||!audioOn)return;const t=AC.currentTime;[220,174.6,146.8,110].forEach((f,i)=>{const o=AC.createOscillator();o.type='sine';o.frequency.value=f;const g=AC.createGain();const on=t+i*0.28;g.gain.setValueAtTime(0.3,on);g.gain.exponentialRampToValueAtTime(0.001,on+0.5);o.connect(g);g.connect(sfxG);o.start(on);o.stop(on+0.5);});}
+function toggleAudio(){
+  audioOn=!audioOn;
+  const btn=document.getElementById('audio-btn');
+  if(audioOn){if(!audioReady)initAudio();else{musicG.gain.value=0.32;startMusic();}btn.textContent='🔊 Sound ON';btn.classList.remove('muted');}
+  else{stopMusic();if(masterG)masterG.gain.value=0;setTimeout(()=>{if(!audioOn&&masterG)masterG.gain.value=0.9;},100);btn.textContent='🔇 Sound OFF';btn.classList.add('muted');}
 }
 
-function stopMusic() {
-  if (musicTimer) { clearInterval(musicTimer); musicTimer = null; }
-}
+// ── CANVAS SETUP ───────────────────────────────────────────
+const ROWS=10,COLS=10,CELL=44,LBL=28,CW=LBL+COLS*CELL;
+const pCv=document.getElementById('player-canvas');
+const eCv=document.getElementById('enemy-canvas');
+const pX=pCv.getContext('2d'), eX=eCv.getContext('2d');
+pCv.width=pCv.height=eCv.width=eCv.height=CW;
 
-// ---- Sound Effects ----
-function sfxHit() {
-  if (!ctx || !audioEnabled) return;
-  const t = ctx.currentTime;
-  // Noise explosion burst
-  const src = noise(0.5);
-  const f = ctx.createBiquadFilter(); f.type = 'lowpass';
-  f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(60, t + 0.4);
-  const g = ctx.createGain(); g.gain.setValueAtTime(1.0, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
-  src.connect(f); f.connect(g); g.connect(sfxGain); src.start(t); src.stop(t + 0.5);
-  // Low thud
-  const o = ctx.createOscillator();
-  o.frequency.setValueAtTime(130, t); o.frequency.exponentialRampToValueAtTime(35, t + 0.25);
-  const g2 = ctx.createGain(); g2.gain.setValueAtTime(0.7, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-  o.connect(g2); g2.connect(sfxGain); o.start(t); o.stop(t + 0.3);
-}
-
-function sfxMiss() {
-  if (!ctx || !audioEnabled) return;
-  const t = ctx.currentTime;
-  // Water splash: bandpass filtered noise, frequency falls
-  const src = noise(0.45);
-  const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.5;
-  f.frequency.setValueAtTime(2800, t); f.frequency.exponentialRampToValueAtTime(300, t + 0.35);
-  const g = ctx.createGain(); g.gain.setValueAtTime(0.35, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
-  src.connect(f); f.connect(g); g.connect(sfxGain); src.start(t); src.stop(t + 0.45);
-  // Small bubble pop at the end
-  const o = ctx.createOscillator(); o.type = 'sine';
-  o.frequency.setValueAtTime(600, t + 0.2); o.frequency.exponentialRampToValueAtTime(200, t + 0.35);
-  const g2 = ctx.createGain(); g2.gain.setValueAtTime(0.15, t + 0.2); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-  o.connect(g2); g2.connect(sfxGain); o.start(t + 0.2); o.stop(t + 0.4);
-}
-
-function sfxSunk() {
-  if (!ctx || !audioEnabled) return;
-  const t = ctx.currentTime;
-  // Big explosion
-  for (let i = 0; i < 3; i++) {
-    const delay = i * 0.12;
-    const src = noise(0.6);
-    const f = ctx.createBiquadFilter(); f.type = 'lowpass';
-    f.frequency.setValueAtTime(1200, t + delay); f.frequency.exponentialRampToValueAtTime(40, t + delay + 0.5);
-    const g = ctx.createGain(); g.gain.setValueAtTime(0.8 - i * 0.2, t + delay); g.gain.exponentialRampToValueAtTime(0.001, t + delay + 0.6);
-    src.connect(f); f.connect(g); g.connect(sfxGain); src.start(t + delay); src.stop(t + delay + 0.6);
-  }
-  // Deep resonant boom
-  const o = ctx.createOscillator(); o.type = 'sine';
-  o.frequency.setValueAtTime(80, t); o.frequency.exponentialRampToValueAtTime(20, t + 0.8);
-  const g = ctx.createGain(); g.gain.setValueAtTime(1.0, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
-  o.connect(g); g.connect(sfxGain); o.start(t); o.stop(t + 0.8);
-}
-
-function sfxVictory() {
-  if (!ctx || !audioEnabled) return;
-  const t = ctx.currentTime;
-  // Ascending fanfare arpeggio: D4 F4 A4 D5
-  [293.7, 349.2, 440, 587.3].forEach((freq, i) => {
-    const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = freq;
-    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1200;
-    const g = ctx.createGain();
-    const on = t + i * 0.18;
-    g.gain.setValueAtTime(0.0, on); g.gain.linearRampToValueAtTime(0.4, on + 0.05);
-    g.gain.setValueAtTime(0.4, on + 0.12); g.gain.exponentialRampToValueAtTime(0.001, on + 0.4);
-    o.connect(f); f.connect(g); g.connect(sfxGain); o.start(on); o.stop(on + 0.4);
-  });
-}
-
-function sfxDefeat() {
-  if (!ctx || !audioEnabled) return;
-  const t = ctx.currentTime;
-  // Descending sad tones: A3 F3 D3 A2
-  [220, 174.6, 146.8, 110].forEach((freq, i) => {
-    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
-    const g = ctx.createGain();
-    const on = t + i * 0.28;
-    g.gain.setValueAtTime(0.3, on); g.gain.exponentialRampToValueAtTime(0.001, on + 0.5);
-    o.connect(g); g.connect(sfxGain); o.start(on); o.stop(on + 0.5);
-  });
-}
-
-function toggleAudio() {
-  audioEnabled = !audioEnabled;
-  const btn = document.getElementById('audio-btn');
-  if (audioEnabled) {
-    if (!audioStarted) initAudio();
-    else { if (musicGain) musicGain.gain.value = 0.35; startMusic(); }
-    btn.textContent = '🔊 Sound ON';
-    btn.classList.remove('muted');
-  } else {
-    stopMusic();
-    if (masterGain) masterGain.gain.value = 0;
-    setTimeout(() => { if (!audioEnabled && masterGain) masterGain.gain.value = 0.9; }, 100);
-    btn.textContent = '🔇 Sound OFF';
-    btn.classList.add('muted');
-  }
-}
-
-// ===================== GAME LOGIC =====================
-const ROWS = 10, COLS = 10;
-const SHIPS = [
-  { name: "Carrier",    size: 5, emoji: "🛳" },
-  { name: "Battleship", size: 4, emoji: "⚔️" },
-  { name: "Cruiser",    size: 3, emoji: "🚢" },
-  { name: "Submarine",  size: 3, emoji: "🔱" },
-  { name: "Destroyer",  size: 2, emoji: "⚡" },
+// ── SHIP DEFINITIONS ───────────────────────────────────────
+const DEFS=[
+  {name:"Carrier",   size:5,emoji:"🛳",color:"#3a5a7a"},
+  {name:"Battleship",size:4,emoji:"⚔️", color:"#4a6a5a"},
+  {name:"Cruiser",   size:3,emoji:"🚢",color:"#5a5a3a"},
+  {name:"Submarine", size:3,emoji:"🔱",color:"#2a4a5a"},
+  {name:"Destroyer", size:2,emoji:"⚡",color:"#5a3a2a"},
 ];
 
-let playerBoard, enemyBoard;
-let phase = "placement";
-let horizontal = true;
-let shipQueue = [];
-let activeShipIdx = 0;
-let turnCount = 0;
-let aiRemaining, aiHits, aiTargets;
+// ── GAME STATE ─────────────────────────────────────────────
+let pBoard,eBoard,pShips,eShips;
+let phase="placement",horiz=true,shipQ=[],activeIdx=0,turns=0;
+let aiRem,aiTgts;
+let hov=null,animT=0,parts=[];
 
-function init() {
-  playerBoard = Array.from({length: ROWS}, () => Array(COLS).fill(0));
-  enemyBoard  = Array.from({length: ROWS}, () => Array(COLS).fill(0));
-  shipQueue   = SHIPS.map(s => ({...s, placed: false}));
-  activeShipIdx = 0; horizontal = true; turnCount = 0;
-  aiRemaining = []; aiHits = []; aiTargets = [];
-  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) aiRemaining.push([r,c]);
-  phase = "placement";
-
-  buildGrid("player-grid", false);
-  buildGrid("enemy-grid",  true);
-  buildShipQueue();
-  randomPlaceShips(enemyBoard);
-
-  document.getElementById("start-btn").style.display   = "none";
-  document.getElementById("restart-btn").style.display = "none";
-  document.getElementById("placement-panel").style.display = "flex";
-  document.getElementById("score").style.display = "flex";
-  document.getElementById("your-hits").textContent  = "0";
-  document.getElementById("enemy-hits").textContent = "0";
-  document.getElementById("overlay").className = "";
-  setStatus("Place your ships — click a ship, then click the grid");
-  buildShipQueue();
+// ── PARTICLES ──────────────────────────────────────────────
+function boom(r,c,onPlayer){
+  const cx=LBL+c*CELL+CELL/2, cy=LBL+r*CELL+CELL/2;
+  for(let i=0;i<18;i++){
+    const a=(i/18)*Math.PI*2+Math.random()*0.4, sp=2+Math.random()*3.5;
+    parts.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,
+      life:1,dec:0.022+Math.random()*0.02,
+      r:210+Math.random()*45|0,g:60+Math.random()*90|0,b:0,
+      sz:2+Math.random()*5,onP:onPlayer});
+  }
+  for(let i=0;i<5;i++)
+    parts.push({x:cx+(Math.random()-.5)*12,y:cy+(Math.random()-.5)*12,
+      vx:(Math.random()-.5)*0.5,vy:-0.8-Math.random()*0.8,
+      life:1,dec:0.012,r:90,g:90,b:90,sz:7+Math.random()*8,smoke:1,onP:onPlayer});
+}
+function splash(r,c,onPlayer){
+  const cx=LBL+c*CELL+CELL/2, cy=LBL+r*CELL+CELL/2;
+  for(let i=0;i<10;i++){
+    const a=-Math.PI/2+(Math.random()-.5)*Math.PI*1.3, sp=2+Math.random()*3;
+    parts.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,
+      life:1,dec:0.032+Math.random()*0.02,
+      r:80+Math.random()*60|0,g:170+Math.random()*50|0,b:220+Math.random()*35|0,
+      sz:2+Math.random()*4,grav:0.12,onP:onPlayer});
+  }
 }
 
-function buildGrid(id, isEnemy) {
-  const grid = document.getElementById(id);
-  grid.innerHTML = "";
-  grid.appendChild(Object.assign(document.createElement("div"), {className:"header-cell"}));
-  for (let c = 0; c < COLS; c++) {
-    grid.appendChild(Object.assign(document.createElement("div"), {className:"header-cell", textContent:c}));
-  }
-  for (let r = 0; r < ROWS; r++) {
-    grid.appendChild(Object.assign(document.createElement("div"), {className:"header-cell", textContent:r}));
-    for (let c = 0; c < COLS; c++) {
-      const cell = document.createElement("div");
-      cell.className = "cell" + (isEnemy ? " enemy" : "");
-      cell.dataset.r = r; cell.dataset.c = c;
-      if (isEnemy) {
-        cell.addEventListener("click", () => playerShot(r, c));
-      } else {
-        cell.addEventListener("click",      () => placeShip(r, c));
-        cell.addEventListener("mouseenter", () => showPreview(r, c));
-        cell.addEventListener("mouseleave", clearPreview);
-      }
-      grid.appendChild(cell);
+// ── RENDERING ──────────────────────────────────────────────
+function hexRGB(h){return[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}
+
+function drawWater(ctx,px,py,t,r,c,hover){
+  const ph=t*1.5+r*0.7+c*0.5;
+  const b=hover?22:13+Math.sin(ph)*3;
+  const h2=hover?200:210+Math.sin(ph*0.7)*5;
+  const s=hover?80:58;
+  const grd=ctx.createLinearGradient(px,py,px,py+CELL-2);
+  grd.addColorStop(0,`hsl(${h2},${s}%,${b+4}%)`);
+  grd.addColorStop(1,`hsl(${h2},${s}%,${b-2}%)`);
+  ctx.fillStyle=grd;
+  ctx.beginPath(); ctx.roundRect(px,py,CELL-2,CELL-2,3); ctx.fill();
+  ctx.strokeStyle=hover?'#4fc3f766':'#1a3a5c'; ctx.lineWidth=hover?1.5:1; ctx.stroke();
+  if(!hover){
+    ctx.strokeStyle=`hsla(${h2+10},65%,${b+15}%,0.18)`; ctx.lineWidth=1;
+    for(let w=0;w<2;w++){
+      const wy=py+(CELL-2)*(0.33+w*0.3)+Math.sin(t*2+c*0.8+w)*1.5;
+      ctx.beginPath(); ctx.moveTo(px+4,wy);
+      ctx.quadraticCurveTo(px+(CELL-2)/2,wy+Math.sin(t+w)*1.5,px+CELL-6,wy); ctx.stroke();
     }
   }
 }
 
-function buildShipQueue() {
-  const el = document.getElementById("ship-queue");
-  el.innerHTML = "";
-  shipQueue.forEach((s, i) => {
-    const btn = document.createElement("button");
-    btn.className = "ship-btn" + (i===activeShipIdx?" active":"") + (s.placed?" placed":"");
-    btn.textContent = `${s.emoji} ${s.name} (${s.size})`;
-    btn.onclick = () => { if (!s.placed) { activeShipIdx = i; buildShipQueue(); } };
-    el.appendChild(btn);
+function drawShipObj(ctx,ship,enemy){
+  if(enemy&&!ship.sunk)return;
+  const px=LBL+ship.c*CELL+2, py=LBL+ship.r*CELL+2;
+  const sw=ship.horiz?ship.size*CELL-4:CELL-4;
+  const sh=ship.horiz?CELL-4:ship.size*CELL-4;
+  const [cr,cg,cb]=hexRGB(ship.color);
+  const dark=`rgb(${Math.max(0,cr-20)},${Math.max(0,cg-20)},${Math.max(0,cb-20)})`;
+  const light=`rgb(${Math.min(255,cr+30)},${Math.min(255,cg+30)},${Math.min(255,cb+30)})`;
+  if(ship.sunk){
+    ctx.fillStyle='#1a0808'; ctx.beginPath(); ctx.roundRect(px,py,sw,sh,4); ctx.fill();
+    ctx.strokeStyle='#4a1010'; ctx.lineWidth=1.5; ctx.stroke();
+  } else {
+    const grd=ctx.createLinearGradient(px,py,px,py+sh);
+    grd.addColorStop(0,light); grd.addColorStop(0.4,ship.color); grd.addColorStop(1,dark);
+    ctx.fillStyle=grd; ctx.beginPath(); ctx.roundRect(px,py,sw,sh,4); ctx.fill();
+    ctx.strokeStyle='#8898aa'; ctx.lineWidth=1.5; ctx.stroke();
+    // Bridge
+    const bw=ship.horiz?Math.min(sw*0.28,16):sw*0.5;
+    const bh=ship.horiz?sh*0.48:Math.min(sh*0.22,16);
+    const bx=ship.horiz?px+sw*0.36:px+sw*0.25;
+    const by=ship.horiz?py+sh*0.26:py+sh*0.36;
+    ctx.fillStyle=dark; ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,2); ctx.fill();
+    ctx.strokeStyle='#aabbcc44'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(bx+bw/2,by); ctx.lineTo(bx+bw/2,by-5); ctx.stroke();
+  }
+  // Hit marks on ship cells
+  ship.hits.forEach(i=>{
+    const hr=ship.r+(ship.horiz?0:i), hc=ship.c+(ship.horiz?i:0);
+    const hx=LBL+hc*CELL+CELL/2, hy=LBL+hr*CELL+CELL/2;
+    ctx.fillStyle=ship.sunk?'#2a0808':'#6f1d1d';
+    ctx.beginPath(); ctx.arc(hx,hy,CELL/2-5,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle=ship.sunk?'#7a1818':'#ef4444'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(hx-5,hy-5); ctx.lineTo(hx+5,hy+5);
+    ctx.moveTo(hx+5,hy-5); ctx.lineTo(hx-5,hy+5); ctx.stroke();
   });
 }
 
-function canPlace(board, r, c, size, horiz) {
-  for (let i = 0; i < size; i++) {
-    const nr = r + (horiz ? 0 : i), nc = c + (horiz ? i : 0);
-    if (nr<0||nr>=ROWS||nc<0||nc>=COLS||board[nr][nc]) return false;
+function drawMiss(ctx,r,c){
+  const cx=LBL+c*CELL+CELL/2, cy=LBL+r*CELL+CELL/2;
+  ctx.strokeStyle='#3a7aaa'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(cx,cy,CELL/2-6,0,Math.PI*2); ctx.stroke();
+  ctx.fillStyle='#6aaad0'; ctx.beginPath(); ctx.arc(cx,cy,3,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#3a7aaa44'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(cx,cy,CELL/2-2,0,Math.PI*2); ctx.stroke();
+}
+
+function drawBoard(ctx,board,ships,enemy){
+  ctx.clearRect(0,0,CW,CW);
+  ctx.fillStyle='#05101e'; ctx.fillRect(0,0,CW,CW);
+  ctx.fillStyle='#3a5570'; ctx.font='bold 11px monospace';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  for(let i=0;i<COLS;i++) ctx.fillText(i,LBL+i*CELL+CELL/2,LBL/2);
+  for(let i=0;i<ROWS;i++) ctx.fillText(i,LBL/2,LBL+i*CELL+CELL/2);
+
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const v=board[r][c];
+    const px=LBL+c*CELL, py=LBL+r*CELL;
+    const isHov=enemy&&hov&&hov.r===r&&hov.c===c&&v<2&&phase==='battle';
+    if(v===0||(v===1&&enemy)){
+      drawWater(ctx,px,py,animT,r,c,isHov);
+      if(isHov){
+        const cx2=px+CELL/2, cy2=py+CELL/2;
+        ctx.strokeStyle='#ef444488'; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.moveTo(cx2-9,cy2); ctx.lineTo(cx2+9,cy2);
+        ctx.moveTo(cx2,cy2-9); ctx.lineTo(cx2,cy2+9); ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx2,cy2,7,0,Math.PI*2); ctx.stroke();
+      }
+    } else if(v===1){
+      drawWater(ctx,px,py,animT,r,c,false);
+    } else if(v===2||v===4){
+      const flk=8+Math.sin(animT*4+r+c)*4;
+      ctx.fillStyle=`rgb(${55+flk},8,8)`;
+      ctx.beginPath(); ctx.roundRect(px+1,py+1,CELL-2,CELL-2,3); ctx.fill();
+      ctx.strokeStyle=v===4?'#4a0808':'#6f1d1d'; ctx.lineWidth=1; ctx.stroke();
+    } else if(v===3){
+      drawWater(ctx,px,py,animT,r,c,false);
+      drawMiss(ctx,r,c);
+    }
   }
+
+  // Ships
+  ships.forEach(s=>drawShipObj(ctx,s,enemy));
+
+  // Placement preview
+  if(!enemy&&phase==='placement'&&hov&&activeIdx>=0&&shipQ[activeIdx]&&!shipQ[activeIdx].placed){
+    const def=shipQ[activeIdx];
+    const ok=canPlace(board,hov.r,hov.c,def.size,horiz);
+    for(let i=0;i<def.size;i++){
+      const pr=hov.r+(horiz?0:i), pc=hov.c+(horiz?i:0);
+      if(pr<0||pr>=ROWS||pc<0||pc>=COLS) continue;
+      ctx.fillStyle=ok?'#22c55e33':'#ef444433';
+      ctx.strokeStyle=ok?'#22c55e':'#ef4444'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.roundRect(LBL+pc*CELL+1,LBL+pr*CELL+1,CELL-2,CELL-2,3);
+      ctx.fill(); ctx.stroke();
+    }
+  }
+
+  // Particles
+  parts.filter(p=>p.onP===!enemy).forEach(p=>{
+    ctx.fillStyle=p.smoke
+      ?`rgba(${p.r},${p.g},${p.b},${p.life*0.35})`
+      :`rgba(${p.r},${p.g},${p.b},${p.life})`;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.sz*p.life,0,Math.PI*2); ctx.fill();
+  });
+}
+
+// ── GAME LOOP ──────────────────────────────────────────────
+let lastT=0;
+function loop(ts){
+  const dt=(ts-lastT)/1000; lastT=ts; animT+=dt;
+  parts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.grav)p.vy+=p.grav;p.life-=p.dec;p.vx*=0.97;if(!p.grav)p.vy*=0.97;});
+  parts=parts.filter(p=>p.life>0);
+  drawBoard(pX,pBoard,pShips,false);
+  drawBoard(eX,eBoard,eShips,true);
+  requestAnimationFrame(loop);
+}
+
+// ── GAME LOGIC ─────────────────────────────────────────────
+function canPlace(board,r,c,sz,h){
+  for(let i=0;i<sz;i++){const nr=r+(h?0:i),nc=c+(h?i:0);if(nr<0||nr>=ROWS||nc<0||nc>=COLS||board[nr][nc])return false;}
   return true;
 }
-
-function doPlace(board, r, c, size, horiz) {
-  for (let i = 0; i < size; i++) board[r+(horiz?0:i)][c+(horiz?i:0)] = 1;
+function doPlace(board,ships,r,c,sz,h,def){
+  const s={...def,r,c,horiz:h,hits:[],sunk:false}; ships.push(s);
+  for(let i=0;i<sz;i++) board[r+(h?0:i)][c+(h?i:0)]=1;
+  return s;
 }
-
-function showPreview(r, c) {
-  if (phase !== "placement") return;
-  clearPreview();
-  const ship = shipQueue[activeShipIdx];
-  if (!ship || ship.placed) return;
-  const ok = canPlace(playerBoard, r, c, ship.size, horizontal);
-  for (let i = 0; i < ship.size; i++) {
-    const nr = r+(horizontal?0:i), nc = c+(horizontal?i:0);
-    if (nr>=0&&nr<ROWS&&nc>=0&&nc<COLS)
-      getCell("player-grid",nr,nc).classList.add(ok?"preview-ok":"preview-bad");
-  }
-}
-
-function clearPreview() {
-  document.querySelectorAll("#player-grid .preview-ok, #player-grid .preview-bad")
-    .forEach(el => el.classList.remove("preview-ok","preview-bad"));
-}
-
-function placeShip(r, c) {
-  if (phase !== "placement") return;
-  const ship = shipQueue[activeShipIdx];
-  if (!ship || ship.placed) return;
-  if (!canPlace(playerBoard, r, c, ship.size, horizontal)) { setStatus("Can't place there! Try again."); return; }
-  doPlace(playerBoard, r, c, ship.size, horizontal);
-  ship.placed = true;
-  renderPlayerBoard();
-  const next = shipQueue.findIndex(s => !s.placed);
-  if (next === -1) {
-    setStatus("All ships placed! Press START BATTLE.");
-    document.getElementById("start-btn").style.display = "block";
-    activeShipIdx = -1;
-  } else {
-    activeShipIdx = next;
-    setStatus(`Now place your ${shipQueue[next].name} (size ${shipQueue[next].size})`);
-  }
-  buildShipQueue();
-}
-
-function randomPlaceShips(board) {
-  SHIPS.forEach(({size}) => {
-    let placed = false;
-    while (!placed) {
-      const horiz = Math.random() < 0.5;
-      const r = Math.floor(Math.random() * ROWS);
-      const c = Math.floor(Math.random() * COLS);
-      if (canPlace(board, r, c, size, horiz)) { doPlace(board, r, c, size, horiz); placed = true; }
-    }
+function rndPlace(board,ships){
+  DEFS.forEach(def=>{
+    let ok=false;
+    while(!ok){const h=Math.random()<0.5,r=Math.floor(Math.random()*ROWS),c=Math.floor(Math.random()*COLS);
+      if(canPlace(board,r,c,def.size,h)){doPlace(board,ships,r,c,def.size,h,def);ok=true;}}
   });
 }
+function findShip(ships,r,c){
+  return ships.find(s=>{for(let i=0;i<s.size;i++){const sr=s.r+(s.horiz?0:i),sc=s.c+(s.horiz?i:0);if(sr===r&&sc===c)return true;}return false;});
+}
+function recHit(ships,r,c){
+  const s=findShip(ships,r,c);
+  if(s){const i=s.horiz?c-s.c:r-s.r;if(!s.hits.includes(i))s.hits.push(i);}
+}
+function checkSunk(board,ships,r,c){
+  const s=findShip(ships,r,c); if(!s)return false;
+  for(let i=0;i<s.size;i++){const sr=s.r+(s.horiz?0:i),sc=s.c+(s.horiz?i:0);if(board[sr][sc]!==2)return false;}
+  s.sunk=true;
+  for(let i=0;i<s.size;i++){const sr=s.r+(s.horiz?0:i),sc=s.c+(s.horiz?i:0);board[sr][sc]=4;}
+  return true;
+}
+function allSunk(board){return!board.flat().includes(1);}
+function cntHits(board){return board.flat().filter(v=>v===2||v===4).length;}
 
-function randomPlayerPlacement() {
-  playerBoard = Array.from({length: ROWS}, () => Array(COLS).fill(0));
-  randomPlaceShips(playerBoard);
-  shipQueue.forEach(s => s.placed = true);
-  activeShipIdx = -1;
-  renderPlayerBoard(); buildShipQueue();
-  setStatus("Ships placed randomly! Press START BATTLE.");
-  document.getElementById("start-btn").style.display = "block";
+function playerShot(r,c){
+  if(phase!=='battle'||eBoard[r][c]>=2)return;
+  if(!audioReady)initAudio();
+  const hit=eBoard[r][c]===1;
+  if(hit){recHit(eShips,r,c);eBoard[r][c]=2;checkSunk(eBoard,eShips,r,c)?sfxSunk():sfxHit();boom(r,c,false);}
+  else{eBoard[r][c]=3;sfxMiss();splash(r,c,false);}
+  document.getElementById('your-hits').textContent=cntHits(eBoard);
+  if(allSunk(eBoard)){endGame(true);return;}
+  setStatus(hit?"💥 HIT! Enemy fires...":"💧 Miss. Enemy fires...");
+  setTimeout(aiTurn,800);
 }
 
-function renderPlayerBoard() {
-  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-    const cell = getCell("player-grid", r, c);
-    cell.className = "cell"; cell.textContent = "";
-    const v = playerBoard[r][c];
-    if (v===1) cell.classList.add("ship");
-    else if (v===2) { cell.classList.add("hit");  cell.textContent = "💥"; }
-    else if (v===3) { cell.classList.add("miss"); cell.textContent = "💧"; }
-    else if (v===4) { cell.classList.add("sunk"); cell.textContent = "💀"; }
-  }
-}
-
-function renderEnemyBoard() {
-  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-    const cell = getCell("enemy-grid", r, c);
-    cell.className = "cell enemy"; cell.textContent = "";
-    const v = enemyBoard[r][c];
-    if (v===2) { cell.classList.add("hit");  cell.textContent = "💥"; }
-    else if (v===3) { cell.classList.add("miss"); cell.textContent = "💧"; }
-    else if (v===4) { cell.classList.add("sunk"); cell.textContent = "💀"; }
-  }
-}
-
-function getCell(gridId, r, c) {
-  return document.querySelector(`#${gridId} .cell[data-r="${r}"][data-c="${c}"]`);
-}
-
-// Check if the ship at (r,c) is fully sunk; if so mark cells as 4 and return true
-function checkAndMarkSunk(board, r, c) {
-  const visited = new Set();
-  const queue = [[r, c]];
-  visited.add(`${r},${c}`);
-  let allHit = true;
-  while (queue.length > 0) {
-    const [cr, cc] = queue.shift();
-    if (board[cr][cc] === 1) { allHit = false; }
-    for (const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
-      const nr=cr+dr, nc=cc+dc, key=`${nr},${nc}`;
-      if (nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&!visited.has(key)&&(board[nr][nc]===1||board[nr][nc]===2)) {
-        visited.add(key); queue.push([nr,nc]);
-      }
-    }
-  }
-  if (allHit) { visited.forEach(key => { const [kr,kc]=key.split(',').map(Number); board[kr][kc]=4; }); }
-  return allHit;
-}
-
-function startBattle() {
-  if (!audioStarted) initAudio();
-  phase = "battle";
-  document.getElementById("placement-panel").style.display = "none";
-  document.getElementById("restart-btn").style.display = "block";
-  renderPlayerBoard(); renderEnemyBoard();
-  setStatus("YOUR TURN — click on enemy waters to fire!");
-}
-
-function playerShot(r, c) {
-  if (phase !== "battle") return;
-  if (enemyBoard[r][c] >= 2) return;
-  if (!audioStarted) initAudio();
-  const hit = enemyBoard[r][c] === 1;
-  enemyBoard[r][c] = hit ? 2 : 3;
-
-  if (hit) {
-    const sunk = checkAndMarkSunk(enemyBoard, r, c);
-    if (sunk) { sfxSunk(); } else { sfxHit(); }
+function aiTurn(){
+  if(phase!=='battle')return;
+  const diff=document.getElementById('difficulty').value;
+  let r,c;
+  if(diff==='hard'){[r,c]=hardShot();}
+  else if(diff==='medium'&&aiTgts.length>0){
+    [r,c]=aiTgts.shift();
+    if(pBoard[r][c]>=2){aiTurn();return;}
   } else {
-    sfxMiss();
+    const i=Math.floor(Math.random()*aiRem.length);[r,c]=aiRem[i];aiRem.splice(i,1);
   }
-
-  renderEnemyBoard();
-  document.getElementById("your-hits").textContent = countHits(enemyBoard);
-
-  if (allSunk(enemyBoard)) { endGame(true); return; }
-
-  setStatus(hit ? "💥 HIT! Enemy ship struck. Now the enemy fires..." : "💧 Miss. Enemy fires back...");
-  setTimeout(aiShot, 750);
+  aiRem=aiRem.filter(([ar,ac])=>!(ar===r&&ac===c));
+  const hit=pBoard[r][c]===1;
+  if(hit){
+    recHit(pShips,r,c);pBoard[r][c]=2;checkSunk(pBoard,pShips,r,c)?sfxSunk():sfxHit();boom(r,c,true);
+    if(diff!=='hard'){[[-1,0],[1,0],[0,-1],[0,1]].forEach(([dr,dc])=>{const nr=r+dr,nc=c+dc;if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&pBoard[nr][nc]<2)aiTgts.push([nr,nc]);});}
+  } else {pBoard[r][c]=3;sfxMiss();splash(r,c,true);}
+  document.getElementById('enemy-hits').textContent=cntHits(pBoard);
+  if(allSunk(pBoard)){endGame(false);return;}
+  setStatus(hit?`💥 Enemy hit (${r},${c})! Your turn.`:`💧 Enemy missed (${r},${c}). Your turn.`);
+  turns++;
 }
 
-function aiShot() {
-  if (phase !== "battle") return;
-  let r, c;
-  if (aiTargets.length > 0) {
-    [r, c] = aiTargets.shift();
-    if (playerBoard[r][c] >= 2) { aiShot(); return; }
-  } else {
-    const idx = Math.floor(Math.random() * aiRemaining.length);
-    [r, c] = aiRemaining[idx]; aiRemaining.splice(idx, 1);
+function hardShot(){
+  while(aiTgts.length>0){const[tr,tc]=aiTgts.shift();if(pBoard[tr][tc]<2)return[tr,tc];}
+  const prob=Array.from({length:ROWS},()=>Array(COLS).fill(0));
+  pShips.filter(s=>!s.sunk).forEach(s=>{
+    const sz=s.size;
+    for(let r=0;r<ROWS;r++)for(let c=0;c<=COLS-sz;c++){let ok=1;for(let i=0;i<sz;i++)if(pBoard[r][c+i]>=3){ok=0;break;}if(ok)for(let i=0;i<sz;i++)prob[r][c+i]++;}
+    for(let r=0;r<=ROWS-sz;r++)for(let c=0;c<COLS;c++){let ok=1;for(let i=0;i<sz;i++)if(pBoard[r+i][c]>=3){ok=0;break;}if(ok)for(let i=0;i<sz;i++)prob[r+i][c]++;}
+  });
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    if(pBoard[r][c]>=2)prob[r][c]=0;
+    else if(pBoard[r][c]===2)[[-1,0],[1,0],[0,-1],[0,1]].forEach(([dr,dc])=>{const nr=r+dr,nc=c+dc;if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS)prob[nr][nc]*=3;});
   }
-  aiRemaining = aiRemaining.filter(([ar,ac]) => !(ar===r&&ac===c));
-
-  const hit = playerBoard[r][c] === 1;
-  playerBoard[r][c] = hit ? 2 : 3;
-
-  if (hit) {
-    const sunk = checkAndMarkSunk(playerBoard, r, c);
-    if (sunk) { sfxSunk(); } else { sfxHit(); }
-    aiHits.push([r,c]);
-    [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dr,dc]) => {
-      const nr=r+dr, nc=c+dc;
-      if (nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&playerBoard[nr][nc]<2) aiTargets.push([nr,nc]);
-    });
-  } else {
-    sfxMiss();
-  }
-
-  renderPlayerBoard();
-  document.getElementById("enemy-hits").textContent = countHits(playerBoard);
-  if (allSunk(playerBoard)) { endGame(false); return; }
-
-  setStatus(hit ? `💥 Enemy hit your ship at (${r},${c})! Your turn.` : `💧 Enemy missed at (${r},${c}). Your turn.`);
-  turnCount++;
+  let mx=-1,best=[];
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){if(prob[r][c]>mx){mx=prob[r][c];best=[[r,c]];}else if(prob[r][c]===mx)best.push([r,c]);}
+  return best[Math.floor(Math.random()*best.length)];
 }
 
-function countHits(board) { return board.flat().filter(v => v===2||v===4).length; }
-function allSunk(board)   { return !board.flat().includes(1); }
-
-function endGame(win) {
-  phase = "over";
-  stopMusic();
-  if (win) sfxVictory(); else sfxDefeat();
-  const overlay = document.getElementById("overlay");
-  overlay.className = "show " + (win ? "win" : "lose");
-  document.getElementById("overlay-title").textContent = win ? "YOU WIN! 🎉" : "GAME OVER 💀";
-  document.getElementById("overlay-sub").textContent   = win
-    ? `You sank the entire enemy fleet in ${turnCount} turns!`
-    : "The enemy destroyed your entire fleet.";
+function endGame(win){
+  phase='over'; stopMusic(); win?sfxWin():sfxLose();
+  const ol=document.getElementById('overlay');
+  ol.className='show '+(win?'win':'lose');
+  document.getElementById('overlay-title').textContent=win?'YOU WIN! 🎉':'GAME OVER 💀';
+  document.getElementById('overlay-sub').textContent=win?`Sank enemy fleet in ${turns} turns!`:'Your fleet was destroyed.';
 }
 
-function setStatus(msg) { document.getElementById("status").textContent = msg; }
+// ── PLACEMENT UI ───────────────────────────────────────────
+function buildQ(){
+  const el=document.getElementById('ship-queue'); el.innerHTML='';
+  shipQ.forEach((s,i)=>{
+    const b=document.createElement('button');
+    b.className='ship-btn'+(i===activeIdx?' active':'')+(s.placed?' placed':'');
+    b.textContent=`${s.emoji} ${s.name} (${s.size})`;
+    b.onclick=()=>{if(!s.placed){activeIdx=i;buildQ();}};
+    el.appendChild(b);
+  });
+}
+function placeAt(r,c){
+  if(phase!=='placement')return;
+  const def=shipQ[activeIdx]; if(!def||def.placed)return;
+  if(!canPlace(pBoard,r,c,def.size,horiz)){setStatus("Can't place there!");return;}
+  doPlace(pBoard,pShips,r,c,def.size,horiz,def); def.placed=true;
+  const nx=shipQ.findIndex(s=>!s.placed);
+  if(nx===-1){setStatus('All placed! Press START BATTLE.');document.getElementById('start-btn').style.display='block';activeIdx=-1;}
+  else{activeIdx=nx;setStatus(`Place ${shipQ[nx].name} (${shipQ[nx].size} cells)`);}
+  buildQ();
+}
+function rndPlayer(){
+  pBoard=Array.from({length:ROWS},()=>Array(COLS).fill(0)); pShips=[];
+  rndPlace(pBoard,pShips); shipQ.forEach(s=>s.placed=true); activeIdx=-1;
+  buildQ(); setStatus('Ships placed! Press START BATTLE.');
+  document.getElementById('start-btn').style.display='block';
+}
+function startBattle(){
+  if(!audioReady)initAudio();
+  phase='battle'; eCv.classList.add('shootable');
+  document.getElementById('placement-panel').style.display='none';
+  document.getElementById('restart-btn').style.display='block';
+  setStatus('YOUR TURN — click enemy waters to fire!');
+}
+function setStatus(m){document.getElementById('status').textContent=m;}
 
-// ===================== WIRING =====================
-document.addEventListener("keydown", e => {
-  if (e.key === "r" || e.key === "R") {
-    horizontal = !horizontal;
-    document.getElementById("rotate-btn").textContent = `↻ Rotate (${horizontal?"H":"V"})`;
-  }
+// ── INIT ───────────────────────────────────────────────────
+function init(){
+  pBoard=Array.from({length:ROWS},()=>Array(COLS).fill(0));
+  eBoard=Array.from({length:ROWS},()=>Array(COLS).fill(0));
+  pShips=[]; eShips=[]; parts=[];
+  shipQ=DEFS.map(s=>({...s,placed:false}));
+  activeIdx=0; horiz=true; turns=0; hov=null;
+  aiRem=[]; aiTgts=[];
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) aiRem.push([r,c]);
+  phase='placement';
+  rndPlace(eBoard,eShips);
+  eCv.classList.remove('shootable');
+  document.getElementById('start-btn').style.display='none';
+  document.getElementById('restart-btn').style.display='none';
+  document.getElementById('placement-panel').style.display='flex';
+  document.getElementById('your-hits').textContent='0';
+  document.getElementById('enemy-hits').textContent='0';
+  document.getElementById('overlay').className='';
+  setStatus('Place your ships — click a ship, then click your grid');
+  buildQ();
+  if(audioOn&&audioReady)startMusic();
+}
+
+// ── EVENTS ─────────────────────────────────────────────────
+function getCell(cv,e){
+  const rc=cv.getBoundingClientRect();
+  const sx=cv.width/rc.width, sy=cv.height/rc.height;
+  const x=(e.clientX-rc.left)*sx, y=(e.clientY-rc.top)*sy;
+  const c=Math.floor((x-LBL)/CELL), r=Math.floor((y-LBL)/CELL);
+  return(r>=0&&r<ROWS&&c>=0&&c<COLS)?{r,c}:null;
+}
+pCv.addEventListener('click',e=>{const cl=getCell(pCv,e);if(cl)placeAt(cl.r,cl.c);});
+pCv.addEventListener('mousemove',e=>{hov=getCell(pCv,e);});
+pCv.addEventListener('mouseleave',()=>hov=null);
+eCv.addEventListener('click',e=>{const cl=getCell(eCv,e);if(cl)playerShot(cl.r,cl.c);});
+eCv.addEventListener('mousemove',e=>{hov=getCell(eCv,e);});
+eCv.addEventListener('mouseleave',()=>hov=null);
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='r'||e.key==='R'){horiz=!horiz;document.getElementById('rotate-btn').textContent=`↻ Rotate (${horiz?'H':'V'})`;}
 });
-
-document.getElementById("rotate-btn").onclick    = () => { horizontal=!horizontal; document.getElementById("rotate-btn").textContent=`↻ Rotate (${horizontal?"H":"V"})`; };
-document.getElementById("random-btn").onclick    = randomPlayerPlacement;
-document.getElementById("start-btn").onclick     = startBattle;
-document.getElementById("restart-btn").onclick   = () => { init(); if(audioEnabled&&audioStarted) startMusic(); };
-document.getElementById("overlay-restart").onclick = () => { init(); if(audioEnabled&&audioStarted) startMusic(); };
-document.getElementById("audio-btn").onclick     = toggleAudio;
+document.getElementById('rotate-btn').onclick=()=>{horiz=!horiz;document.getElementById('rotate-btn').textContent=`↻ Rotate (${horiz?'H':'V'})`;};
+document.getElementById('random-btn').onclick=rndPlayer;
+document.getElementById('start-btn').onclick=startBattle;
+document.getElementById('restart-btn').onclick=init;
+document.getElementById('overlay-restart').onclick=init;
+document.getElementById('audio-btn').onclick=toggleAudio;
 
 init();
+requestAnimationFrame(loop);
 </script>
 </body>
 </html>
