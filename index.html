@@ -67,7 +67,7 @@ canvas.shootable { cursor:crosshair; }
 #restart-btn { background:#7f1d1d; color:#fecaca; border-color:#ef4444; display:none; margin-top:4px; }
 #restart-btn:hover { background:#ef4444; color:#0a1628; }
 
-#score { display:flex; gap:36px; font-size:0.9rem; color:#607d8b; }
+#score { display:flex; gap:20px; flex-wrap:wrap; justify-content:center; font-size:0.9rem; color:#607d8b; }
 #score span { color:#4fc3f7; font-weight:bold; }
 #footer { margin-top:14px; font-size:0.72rem; color:#334155; letter-spacing:3px; text-transform:uppercase; }
 
@@ -120,6 +120,8 @@ canvas.shootable { cursor:crosshair; }
     <canvas id="enemy-canvas"></canvas>
     <div id="score">
       <div>Your hits: <span id="your-hits">0</span></div>
+      <div>Accuracy: <span id="accuracy">—</span></div>
+      <div>Turn: <span id="turns-count">0</span></div>
       <div>Enemy hits: <span id="enemy-hits">0</span></div>
     </div>
     <button class="btn" id="restart-btn">↺ Play Again</button>
@@ -131,6 +133,7 @@ canvas.shootable { cursor:crosshair; }
 <div id="overlay">
   <h2 id="overlay-title"></h2>
   <p id="overlay-sub"></p>
+  <p id="overlay-stats" style="font-size:0.82rem;color:#607d8b;letter-spacing:1px;margin-top:-8px;"></p>
   <button id="overlay-restart">PLAY AGAIN</button>
 </div>
 
@@ -193,6 +196,32 @@ function toggleAudio(){
   else{stopMusic();if(masterG)masterG.gain.value=0;setTimeout(()=>{if(!audioOn&&masterG)masterG.gain.value=0.9;},100);btn.textContent='🔇 Sound OFF';btn.classList.add('muted');}
 }
 
+// ── STATS (localStorage) ───────────────────────────────────
+function loadStats(){
+  return{
+    wins:    parseInt(localStorage.getItem('bs_wins')        ||'0'),
+    losses:  parseInt(localStorage.getItem('bs_losses')      ||'0'),
+    best:{
+      easy:   parseInt(localStorage.getItem('bs_best_easy')  ||'999'),
+      medium: parseInt(localStorage.getItem('bs_best_medium')||'999'),
+      hard:   parseInt(localStorage.getItem('bs_best_hard')  ||'999'),
+    }
+  };
+}
+function saveStats(win,t,diff){
+  const s=loadStats();
+  if(win){
+    s.wins++;
+    const isNew=t<(s.best[diff]||999);
+    if(isNew) localStorage.setItem('bs_best_'+diff,t);
+    localStorage.setItem('bs_wins',s.wins);
+    return isNew;
+  }
+  s.losses++;
+  localStorage.setItem('bs_losses',s.losses);
+  return false;
+}
+
 // ── CANVAS SETUP ───────────────────────────────────────────
 const ROWS=10,COLS=10,CELL=44,LBL=28,CW=LBL+COLS*CELL;
 const pCv=document.getElementById('player-canvas');
@@ -211,7 +240,7 @@ const DEFS=[
 
 // ── GAME STATE ─────────────────────────────────────────────
 let pBoard,eBoard,pShips,eShips;
-let phase="placement",horiz=true,shipQ=[],activeIdx=0,turns=0;
+let phase="placement",horiz=true,shipQ=[],activeIdx=0,turns=0,shotsFired=0,playerWon=false,revealAlpha=0;
 let aiRem,aiTgts;
 let hov=null,animT=0,parts=[];
 
@@ -403,13 +432,14 @@ function drawSunkShip(ctx,x,y,w,h){
 }
 
 function drawShipObj(ctx,ship,enemy){
-  if(enemy&&!ship.sunk)return;
+  if(enemy&&!ship.sunk&&revealAlpha<=0)return;
   const cx=LBL+ship.c*CELL+(ship.horiz?ship.size*CELL/2:CELL/2);
   const cy=LBL+ship.r*CELL+(ship.horiz?CELL/2:ship.size*CELL/2);
   const dw=ship.size*CELL-4, dh=CELL-4;
   ctx.save();
   ctx.translate(cx,cy);
   if(!ship.horiz) ctx.rotate(Math.PI/2);
+  if(enemy&&!ship.sunk) ctx.globalAlpha=revealAlpha*0.8;
   const x=-dw/2, y=-dh/2;
   if(ship.sunk){ drawSunkShip(ctx,x,y,dw,dh); }
   else {
@@ -509,6 +539,7 @@ function loop(ts){
   const dt=(ts-lastT)/1000; lastT=ts; animT+=dt;
   parts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.grav)p.vy+=p.grav;p.life-=p.dec;p.vx*=0.97;if(!p.grav)p.vy*=0.97;});
   parts=parts.filter(p=>p.life>0);
+  if(phase==='over'&&!playerWon&&revealAlpha<1) revealAlpha=Math.min(1,revealAlpha+0.012);
   drawBoard(pX,pBoard,pShips,false);
   drawBoard(eX,eBoard,eShips,true);
   requestAnimationFrame(loop);
@@ -551,10 +582,14 @@ function cntHits(board){return board.flat().filter(v=>v===2||v===4).length;}
 function playerShot(r,c){
   if(phase!=='battle'||eBoard[r][c]>=2)return;
   if(!audioReady)initAudio();
+  shotsFired++; turns++;
   const hit=eBoard[r][c]===1;
   if(hit){recHit(eShips,r,c);eBoard[r][c]=2;checkSunk(eBoard,eShips,r,c)?sfxSunk():sfxHit();boom(r,c,false);}
   else{eBoard[r][c]=3;sfxMiss();splash(r,c,false);}
-  document.getElementById('your-hits').textContent=cntHits(eBoard);
+  const h=cntHits(eBoard);
+  document.getElementById('your-hits').textContent=h;
+  document.getElementById('accuracy').textContent=Math.round(h/shotsFired*100)+'%';
+  document.getElementById('turns-count').textContent=turns;
   if(allSunk(eBoard)){endGame(true);return;}
   setStatus(hit?"💥 HIT! Enemy fires...":"💧 Miss. Enemy fires...");
   setTimeout(aiTurn,800);
@@ -580,7 +615,6 @@ function aiTurn(){
   document.getElementById('enemy-hits').textContent=cntHits(pBoard);
   if(allSunk(pBoard)){endGame(false);return;}
   setStatus(hit?`💥 Enemy hit (${r},${c})! Your turn.`:`💧 Enemy missed (${r},${c}). Your turn.`);
-  turns++;
 }
 
 function hardShot(){
@@ -601,11 +635,27 @@ function hardShot(){
 }
 
 function endGame(win){
-  phase='over'; stopMusic(); win?sfxWin():sfxLose();
+  phase='over'; playerWon=win; stopMusic(); win?sfxWin():sfxLose();
+  if(!win) revealAlpha=0; // kick off reveal animation
+
+  const diff=document.getElementById('difficulty').value;
+  const isNew=saveStats(win,turns,diff);
+  const stats=loadStats();
+
   const ol=document.getElementById('overlay');
   ol.className='show '+(win?'win':'lose');
   document.getElementById('overlay-title').textContent=win?'YOU WIN! 🎉':'GAME OVER 💀';
-  document.getElementById('overlay-sub').textContent=win?`Sank enemy fleet in ${turns} turns!`:'Your fleet was destroyed.';
+
+  const acc=shotsFired>0?Math.round(cntHits(eBoard)/shotsFired*100):0;
+  document.getElementById('overlay-sub').textContent=win
+    ?`Sank fleet in ${turns} turns — Accuracy: ${acc}%`
+    :'Your fleet was destroyed. Enemy positions revealed below.';
+
+  const best=stats.best[diff];
+  let sl=`Wins: ${stats.wins}  |  Losses: ${stats.losses}`;
+  if(win&&isNew)       sl+=`  |  🏅 New best on ${diff}: ${turns} turns!`;
+  else if(best<999)    sl+=`  |  Best (${diff}): ${best} turns`;
+  document.getElementById('overlay-stats').textContent=sl;
 }
 
 // ── PLACEMENT UI ───────────────────────────────────────────
@@ -650,7 +700,7 @@ function init(){
   eBoard=Array.from({length:ROWS},()=>Array(COLS).fill(0));
   pShips=[]; eShips=[]; parts=[];
   shipQ=DEFS.map(s=>({...s,placed:false}));
-  activeIdx=0; horiz=true; turns=0; hov=null;
+  activeIdx=0; horiz=true; turns=0; shotsFired=0; playerWon=false; revealAlpha=0; hov=null;
   aiRem=[]; aiTgts=[];
   for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) aiRem.push([r,c]);
   phase='placement';
@@ -661,6 +711,9 @@ function init(){
   document.getElementById('placement-panel').style.display='flex';
   document.getElementById('your-hits').textContent='0';
   document.getElementById('enemy-hits').textContent='0';
+  document.getElementById('accuracy').textContent='—';
+  document.getElementById('turns-count').textContent='0';
+  document.getElementById('overlay-stats').textContent='';
   document.getElementById('overlay').className='';
   setStatus('Place your ships — click a ship, then click your grid');
   buildQ();
